@@ -1,7 +1,7 @@
-streamlit
+ultralytics>=8.0.20
+torch>=2.0.0
 opencv-python
-numpy
-ultralytics
 moviepy
+streamlit
 streamlit-webrtc
-torch
+numpy
