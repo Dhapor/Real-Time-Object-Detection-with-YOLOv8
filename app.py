@@ -6,22 +6,25 @@ from ultralytics import YOLO
 from moviepy.editor import VideoFileClip
 from streamlit_webrtc import webrtc_streamer, WebRtcMode, VideoTransformerBase
 
+# Set Streamlit page config
 st.set_page_config(page_title="YOLOv8 Object Detection App")
 st.title("YOLOv8 Object Detection App 🚗🧍🏽‍♂️🚌")
 st.markdown("Choose input mode to detect objects using YOLOv8:")
 
+# Load YOLO model
 @st.cache_resource
 def load_model():
-    return YOLO("yolov8n.pt")
+    return YOLO("yolov8n.pt")  # lightweight model
 
 model = load_model()
 
+# Choose mode
 mode = st.radio("Select Input Mode", ["Upload Image/Video", "Use Webcam"])
 
 if mode == "Upload Image/Video":
     uploaded_file = st.file_uploader("Upload an image or video", type=['jpg', 'jpeg', 'png', 'mp4', 'mov'])
 
-    if uploaded_file is not None:
+    if uploaded_file:
         file_type = uploaded_file.type
 
         if 'image' in file_type:
@@ -32,28 +35,32 @@ if mode == "Upload Image/Video":
             st.image(annotated, caption="Detected Image", use_container_width=True)
 
         elif 'video' in file_type:
-            temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mov" if 'quicktime' in file_type else ".mp4")
+            # Save uploaded video temporarily
+            suffix = ".mov" if 'quicktime' in file_type else ".mp4"
+            temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
             temp_input.write(uploaded_file.read())
             temp_input.close()
 
-            # Convert MOV to MP4 if necessary
+            # Convert MOV to MP4 if needed
             if 'quicktime' in file_type:
                 temp_output = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
                 clip = VideoFileClip(temp_input.name)
-                clip.write_videofile(temp_output.name, codec='libx264')
+                clip.write_videofile(temp_output.name, codec='libx264', audio=False)
                 video_path = temp_output.name
             else:
                 video_path = temp_input.name
 
+            # Read and process video frame by frame
             cap = cv2.VideoCapture(video_path)
             stframe = st.empty()
+
             while cap.isOpened():
                 ret, frame = cap.read()
                 if not ret:
                     break
                 results = model(frame)
-                annotated_frame = results[0].plot()
-                stframe.image(annotated_frame, channels="BGR")
+                annotated = results[0].plot()
+                stframe.image(annotated, channels="BGR")
             cap.release()
 
 elif mode == "Use Webcam":
@@ -64,4 +71,8 @@ elif mode == "Use Webcam":
             annotated = results[0].plot()
             return annotated
 
-    webrtc_streamer(key="example", mode=WebRtcMode.SENDRECV, video_transformer_factory=VideoTransformer)
+    webrtc_streamer(
+        key="webcam",
+        mode=WebRtcMode.SENDRECV,
+        video_transformer_factory=VideoTransformer
+    )
