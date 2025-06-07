@@ -82,6 +82,6 @@ elif mode == "Use Webcam":
             img = frame.to_ndarray(format="bgr24")
             results = model(img)
             annotated = results[0].plot()
-            return annotated
+            return VideoFrame.from_ndarray(annotated_img, format="bgr24")
 
     webrtc_streamer(key="example", mode=WebRtcMode.SENDRECV, video_transformer_factory=VideoTransformer)
