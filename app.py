@@ -1,12 +1,10 @@
 import streamlit as st
 import cv2
-import numpy as np
-import tempfile
+from av import VideoFrame
 from ultralytics import YOLO
-from moviepy.editor import VideoFileClip
 from streamlit_webrtc import webrtc_streamer, WebRtcMode, VideoTransformerBase
 
-# Setting up the page configuration
+# Page config
 st.set_page_config(page_title="YOLOv8 Object Detection App")
 st.title("YOLOv8 Object Detection App 🚗🧍🏽‍♂️🚌")
 st.markdown("Choose input mode to detect objects using YOLOv8:")
@@ -25,21 +23,25 @@ if mode == "Upload Image/Video":
     if uploaded_file is not None:
         file_type = uploaded_file.type
 
-        # For Image files
+        # Handle images
         if 'image' in file_type:
             file_bytes = uploaded_file.read()
             np_img = cv2.imdecode(np.frombuffer(file_bytes, np.uint8), cv2.IMREAD_COLOR)
-            results = model(np_img)
+            results = model(cv2.cvtColor(np_img, cv2.COLOR_BGR2RGB))  # Convert to RGB before inference
             annotated = results[0].plot()
-            st.image(annotated, caption="Detected Image", use_container_width=True)
+            annotated_bgr = cv2.cvtColor(annotated, cv2.COLOR_RGB2BGR)
+            st.image(annotated_bgr, caption="Detected Image", channels="BGR", use_container_width=True)
 
-        # For Video files
+        # Handle videos
         elif 'video' in file_type:
+            import tempfile
+            from moviepy.editor import VideoFileClip
+
             temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mov" if 'quicktime' in file_type else ".mp4")
             temp_input.write(uploaded_file.read())
             temp_input.close()
 
-            # Convert MOV to MP4 if necessary
+            # Convert MOV to MP4 if needed
             if 'quicktime' in file_type:
                 temp_output = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
                 clip = VideoFileClip(temp_input.name)
@@ -48,40 +50,48 @@ if mode == "Upload Image/Video":
             else:
                 video_path = temp_input.name
 
-            # Open the video file
             cap = cv2.VideoCapture(video_path)
             stframe = st.empty()
 
-            # Read and process video frames
             while cap.isOpened():
                 ret, frame = cap.read()
                 if not ret:
                     break
 
-                # Get the frame's original aspect ratio
                 height, width, _ = frame.shape
                 aspect_ratio = width / height
 
-                # Resize the frame to fit the container, maintaining the original aspect ratio
-                new_width = 600  # You can set a fixed width
-                new_height = int(new_width / aspect_ratio)  # Calculate corresponding height
+                new_width = 600
+                new_height = int(new_width / aspect_ratio)
                 resized_frame = cv2.resize(frame, (new_width, new_height))
 
-                # Run object detection
-                results = model(resized_frame)
-                annotated_frame = results[0].plot()
+                results = model(cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB))
+                annotated = results[0].plot()
+                annotated_bgr = cv2.cvtColor(annotated, cv2.COLOR_RGB2BGR)
 
-                # Display the annotated frame
-                stframe.image(annotated_frame, channels="BGR", use_container_width=True)
+                stframe.image(annotated_bgr, channels="BGR", use_container_width=True)
 
             cap.release()
 
 elif mode == "Use Webcam":
-    class VideoTransformer(VideoTransformerBase):
-        def transform(self, frame):
-            img = frame.to_ndarray(format="bgr24")
-            results = model(img)
-            annotated = results[0].plot()
-            return VideoFrame.from_ndarray(annotated_img, format="bgr24")
 
-    webrtc_streamer(key="example", mode=WebRtcMode.SENDRECV, video_transformer_factory=VideoTransformer)
+    class YOLOTransformer(VideoTransformerBase):
+        def transform(self, frame):
+            try:
+                img = frame.to_ndarray(format="bgr24")
+                img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                results = model(img_rgb)
+                annotated_rgb = results[0].plot()
+                annotated_bgr = cv2.cvtColor(annotated_rgb, cv2.COLOR_RGB2BGR)
+                return VideoFrame.from_ndarray(annotated_bgr, format="bgr24")
+            except Exception as e:
+                print(f"Error in transform: {e}")
+                return frame.to_ndarray(format="bgr24")
+
+    webrtc_streamer(
+        key="yolo-live",
+        mode=WebRtcMode.SENDRECV,
+        video_transformer_factory=YOLOTransformer,
+        media_stream_constraints={"video": True, "audio": False},
+        async_processing=True,
+    )
