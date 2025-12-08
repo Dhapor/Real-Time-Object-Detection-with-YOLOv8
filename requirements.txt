@@ -2,5 +2,4 @@ streamlit==1.27.0
 ultralytics==8.1.16
 opencv-python-headless==4.8.1.78
 numpy==1.26.0
-moviepy==1.0.3
 av==11.1.0
