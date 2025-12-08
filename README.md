@@ -24,7 +24,7 @@ av==11.1.0
 ## How to Use
 
 Clone the repo:
-git clone https://github.com/yourusername/YOLOv8-Object-Detection-App.git
+git clone https://github.com/Dhapor/Real-Time-Object-Detection-with-YOLOv8.git
 cd YOLOv8-Object-Detection-App
 
 Install dependencies:
